@@ -13,6 +13,7 @@ Everything runs on your machine. The web server binds to `127.0.0.1`, images rem
 - Standard, Large, and High resolutions with five aspect ratios
 - Style, palette, exact-text, transparency, and optional anatomy guidance
 - Persistent jobs across page reloads, reusable settings, and reference-based follow-up edits
+- Clearable generation history; prompt drafts are not retained in browser storage
 - Individual PNG downloads, clipboard copy, and batch ZIP downloads
 - Responsive desktop and mobile interface
 - Model-stage caching between compatible variations
@@ -143,6 +144,8 @@ Update-Qwenian.ps1      User-facing updater
 ```
 
 Runtime state is stored in `.studio/`; references and outputs live under `ComfyUI/`. These directories, model files, and generated media are intentionally excluded from Git.
+
+**Clear history** removes completed, cancelled, and failed job records from Qwenian while keeping active jobs and generated image files. Qwenian remembers non-prompt UI preferences locally, but it does not restore or retain the last prompt in browser storage.
 
 ## Security and privacy
 

@@ -81,6 +81,16 @@ class Studio:
         self.progress_online = False
         self.capabilities = None
 
+    @property
+    def history_cutoff_path(self):
+        return self.data_dir / "history-cleared-before.txt"
+
+    def history_cutoff(self):
+        try:
+            return float(self.history_cutoff_path.read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            return 0.0
+
     def persist(self, batch):
         target = self.data_dir / (batch["id"] + ".json")
         temporary = target.with_suffix(".tmp")
@@ -392,6 +402,27 @@ async def clear_queue(request):
     return web.json_response({"removed": len(queued_ids), "batches": [studio.public(batch) for batch in studio.batches.values()]})
 
 
+async def clear_history(request):
+    studio = request.app["studio"]
+    async with studio.lock:
+        removable = [batch_id for batch_id, batch in studio.batches.items()
+                     if all(item["status"] in TERMINAL for item in batch["items"])]
+        cutoff = time.time()
+        studio.data_dir.mkdir(parents=True, exist_ok=True)
+        temporary = studio.history_cutoff_path.with_suffix(".tmp")
+        temporary.write_text(str(cutoff), encoding="utf-8")
+        temporary.replace(studio.history_cutoff_path)
+        for batch_id in removable:
+            path = studio.data_dir / f"{batch_id}.json"
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
+            studio.batches.pop(batch_id, None)
+        records = sorted(studio.batches.values(), key=lambda batch: batch["created_at"], reverse=True)
+    return web.json_response({"removed": len(removable), "batches": [studio.public(batch) for batch in records]})
+
+
 def output_path(studio, filename, subfolder=""):
     base = studio.output_dir.resolve()
     path = (base / subfolder / filename).resolve()
@@ -417,7 +448,10 @@ async def reference(request):
 
 async def recent(request):
     studio = request.app["studio"]
-    files = await asyncio.to_thread(lambda: sorted(studio.output_dir.glob("QwenStudio*.png"), key=lambda p: p.stat().st_mtime, reverse=True)[:48])
+    cutoff = studio.history_cutoff()
+    files = await asyncio.to_thread(lambda: sorted(
+        (path for path in studio.output_dir.glob("QwenStudio*.png") if path.stat().st_mtime > cutoff),
+        key=lambda path: path.stat().st_mtime, reverse=True)[:48])
     return web.json_response({"images": [image_url({"filename": p.name}) for p in files]})
 
 
@@ -464,6 +498,7 @@ def create_app(comfy_url="http://127.0.0.1:8188", data_dir=None, input_dir=None,
                     web.post("/api/generate", generate), web.get("/api/batches", batches),
                     web.get("/api/job/{batch_id}", job), web.post("/api/job/{batch_id}/cancel", cancel),
                     web.post("/api/job/{batch_id}/item/{index}/cancel", cancel_item), web.post("/api/queue/clear", clear_queue),
+                    web.post("/api/history/clear", clear_history),
                     web.get("/api/job/{batch_id}/download", download_batch), web.get("/api/view", view),
                     web.get("/api/reference/{filename}", reference), web.get("/api/recent", recent)])
     app.router.add_static("/static/", ROOT / "static")

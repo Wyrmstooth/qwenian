@@ -258,6 +258,23 @@ class APITests(unittest.IsolatedAsyncioTestCase):
         await self.refresh()
         self.assertEqual(item['status'],'error')
 
+    async def test_clear_history_keeps_active_jobs_and_image_files(self):
+        completed = await self.generate(count='1')
+        self.engine.finish(completed['items'][0]['prompt_id'])
+        await self.refresh()
+        image_path = next((self.root/'output').glob('QwenStudio*.png'))
+        active = await self.generate(count='1', seed='200')
+        response = await self.client.post('/api/history/clear')
+        self.assertEqual(response.status, 200)
+        result = await response.json()
+        self.assertEqual(result['removed'], 1)
+        self.assertEqual([batch['id'] for batch in result['batches']], [active['id']])
+        self.assertTrue(image_path.is_file())
+        self.assertFalse((self.root/'jobs'/f"{completed['id']}.json").exists())
+        self.assertTrue((self.root/'jobs'/f"{active['id']}.json").exists())
+        response = await self.client.get('/api/recent')
+        self.assertEqual((await response.json())['images'], [])
+
 
 if __name__ == '__main__':
     unittest.main()

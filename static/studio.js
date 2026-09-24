@@ -76,7 +76,7 @@ function updateControls(persist = true) {
   const count = Number($('count').value);
   if (!state.submitting) $('generate').innerHTML = `Generate ${count} image${count === 1 ? '' : 's'} <span>↗</span>`;
   $('charCount').textContent = `${$('prompt').value.length.toLocaleString()} / 12,000`;
-  if (persist) safeStore('qwen-studio-draft-v2', fields());
+  if (persist) { const preferences = fields(); delete preferences.prompt; safeStore('qwen-studio-draft-v2', preferences); }
   clearTimeout(updateControls.timer);
   updateControls.timer = setTimeout(previewPrompt, 300);
 }
@@ -298,6 +298,21 @@ $('clearQueue').onclick = async () => {
   catch (error) { showError(error.message); }
   finally { $('clearQueue').disabled = false; }
 };
+$('clearHistory').onclick = async () => {
+  $('clearHistory').disabled = true;
+  try {
+    const result = await api('/api/history/clear', {method:'POST'});
+    state.batches = result.batches; state.legacy = []; state.jobsKey = null; state.galleryKey = null;
+    renderJobs(); renderGallery();
+    if (state.selected?.batch && !state.batches.some(batch => batch.id === state.selected.batch.id)) {
+      state.selected = null; $('previewImage').hidden = true; $('previewImage').removeAttribute('src'); $('emptyPreview').hidden = false;
+      $('previewOpen').disabled = true; $('resultInfo').hidden = true; $('resultActions').hidden = true;
+      try { localStorage.removeItem('qwen-studio-selected'); } catch {}
+    }
+    toast(`Cleared ${result.removed} generation record${result.removed === 1 ? '' : 's'}. Image files were kept.`);
+  } catch (error) { showError(error.message); }
+  finally { $('clearHistory').disabled = false; }
+};
 function setCollection(open) {
   $('collectionBody').hidden = !open;
   $('collectionToggle').setAttribute('aria-expanded', String(open));
@@ -308,7 +323,7 @@ $('galleryToggle').onclick = () => { setCollection(true); $('gallerySection').sc
 
 async function init() {
   const draft = stored('qwen-studio-draft-v2', null);
-  if (draft) applySettings(draft); else updateControls(false);
+  if (draft) { delete draft.prompt; safeStore('qwen-studio-draft-v2', draft); applySettings(draft); } else updateControls(false);
   try { state.config = await api('/api/config'); updateControls(false); } catch(error) { showError(error.message); }
   try { state.legacy = (await api('/api/recent')).images; } catch {}
   checkHealth(); poll();

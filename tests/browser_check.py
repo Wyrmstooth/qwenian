@@ -59,7 +59,8 @@ async def main():
                 await page.keyboard.press('Escape')
                 await page.reload()
                 await page.wait_for_function("document.querySelectorAll('.gallery-card').length === 2")
-                assert await page.locator('#prompt').input_value()
+                assert await page.locator('#prompt').input_value() == ''
+                assert 'prompt' not in await page.evaluate("JSON.parse(localStorage.getItem('qwen-studio-draft-v2'))")
                 await page.locator('#useReference').click()
                 await page.wait_for_function("document.querySelector('[data-mode=edit]').getAttribute('aria-pressed') === 'true'")
                 assert await page.locator('[data-mode="edit"]').get_attribute('aria-pressed') == 'true'
@@ -80,8 +81,11 @@ async def main():
                 await page.set_viewport_size({'width':390,'height':844})
                 await page.screenshot(path=str(root/'.studio/browser-mobile.png'),full_page=True)
                 assert await page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+                await page.locator('#collectionToggle').click()
+                await page.locator('#clearHistory').click()
+                await page.wait_for_function("document.querySelectorAll('.gallery-card').length === 0")
                 assert not errors, errors
-                print(json.dumps({'browser_errors':errors,'checks':['mode tabs','batch submission','completion','gallery','reuse','variations','zip download','lightbox','reload recovery','edit reference','scoped cancel','desktop layout','mobile layout']}))
+                print(json.dumps({'browser_errors':errors,'checks':['mode tabs','batch submission','completion','gallery','reuse','variations','zip download','lightbox','reload recovery','prompt privacy','edit reference','scoped cancel','clear history','desktop layout','mobile layout']}))
                 await browser.close()
 
 
