@@ -355,6 +355,43 @@ async def cancel(request):
     return web.json_response(studio.public(batch))
 
 
+async def cancel_item(request):
+    studio, batch = request.app["studio"], get_batch(request)
+    try:
+        index = int(request.match_info["index"])
+    except ValueError:
+        raise web.HTTPBadRequest(text="Invalid item index")
+    if index < 0 or index >= len(batch["items"]):
+        raise web.HTTPNotFound(text="Unknown batch item")
+    item = batch["items"][index]
+    async with studio.lock:
+        if item["status"] in TERMINAL:
+            return web.json_response(studio.public(batch))
+        result = await studio.api("POST", f"/api/jobs/{item['prompt_id']}/cancel", json={})
+        item["cancel_requested"] = True
+        if result.get("cancelled"):
+            item.update(status="cancelled", ended_at=time.time(), stage="Removed from queue")
+        studio.persist(batch)
+    return web.json_response(studio.public(batch))
+
+
+async def clear_queue(request):
+    studio = request.app["studio"]
+    async with studio.lock:
+        queue = await studio.api("GET", "/queue")
+        owned = {item["prompt_id"]: (batch, item)
+                 for batch in studio.batches.values() for item in batch["items"]
+                 if item["status"] not in TERMINAL and item.get("prompt_id")}
+        queued_ids = [entry[1] for entry in queue.get("queue_pending", []) if entry[1] in owned]
+        if queued_ids:
+            await studio.api("POST", "/queue", json={"delete": queued_ids})
+        for prompt_id in queued_ids:
+            batch, item = owned[prompt_id]
+            item.update(status="cancelled", cancel_requested=True, ended_at=time.time(), stage="Removed from queue")
+            studio.persist(batch)
+    return web.json_response({"removed": len(queued_ids), "batches": [studio.public(batch) for batch in studio.batches.values()]})
+
+
 def output_path(studio, filename, subfolder=""):
     base = studio.output_dir.resolve()
     path = (base / subfolder / filename).resolve()
@@ -426,6 +463,7 @@ def create_app(comfy_url="http://127.0.0.1:8188", data_dir=None, input_dir=None,
     app.add_routes([web.get("/", home), web.get("/api/config", config), web.post("/api/preview", preview), web.get("/api/health", health),
                     web.post("/api/generate", generate), web.get("/api/batches", batches),
                     web.get("/api/job/{batch_id}", job), web.post("/api/job/{batch_id}/cancel", cancel),
+                    web.post("/api/job/{batch_id}/item/{index}/cancel", cancel_item), web.post("/api/queue/clear", clear_queue),
                     web.get("/api/job/{batch_id}/download", download_batch), web.get("/api/view", view),
                     web.get("/api/reference/{filename}", reference), web.get("/api/recent", recent)])
     app.router.add_static("/static/", ROOT / "static")

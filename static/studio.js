@@ -156,12 +156,13 @@ function renderJobs() {
   const active = state.batches.filter(b => b.status === 'working');
   const remaining = active.reduce((sum,b) => sum + b.items.length - b.finished, 0);
   $('queueCount').textContent = remaining ? `${remaining} image${remaining === 1 ? '' : 's'} remaining` : 'All clear';
+  $('clearQueue').hidden = !state.batches.some(b => b.items.some(item => item.status === 'queued'));
   const visible = [...active, ...state.batches.filter(b => b.status !== 'working').slice(0,4)];
   const markup = visible.map(batch => {
     const items = batch.items.map(item => {
       let text = item.status === 'queued' ? `Queued${item.queue_position ? ' · position ' + item.queue_position : ''}` : item.status === 'running' ? `${item.stage || 'Preparing'}${item.step ? ` · ${item.step}/${item.total_steps}` : ''}` : item.status === 'done' ? `Complete · seed ${item.seed}` : item.status === 'error' ? item.error || 'Generation failed' : item.status === 'cancelled' ? 'Cancelled' : item.status === 'checking' ? 'Checking submission with the engine…' : 'Submitting…';
       if (item.status === 'running' && item.started_at) text += ` · ${duration(Date.now()/1000 - item.started_at)}`;
-      return `<div class="job-item">${item.images.length ? `<button type="button" data-image="${escapeHTML(item.images[0])}" aria-label="View variation ${item.index+1}"><img src="${escapeHTML(item.images[0])}" alt="Variation ${item.index+1}" loading="lazy"></button>` : `<span class="item-index">${String(item.index+1).padStart(2,'0')}</span>`}<div class="item-info"><p class="${item.status === 'error' ? 'item-error' : ''}">${escapeHTML(text)}</p>${!terminal.has(item.status) ? `<progress aria-label="Image ${item.index+1} sampling progress" max="1" ${item.progress ? `value="${item.progress}"` : ''}></progress>` : ''}</div></div>`;
+      return `<div class="job-item">${item.images.length ? `<button type="button" data-image="${escapeHTML(item.images[0])}" aria-label="View variation ${item.index+1}"><img src="${escapeHTML(item.images[0])}" alt="Variation ${item.index+1}" loading="lazy"></button>` : `<span class="item-index">${String(item.index+1).padStart(2,'0')}</span>`}<div class="item-info"><p class="${item.status === 'error' ? 'item-error' : ''}">${escapeHTML(text)}</p>${!terminal.has(item.status) ? `<progress aria-label="Image ${item.index+1} sampling progress" max="1" ${item.progress ? `value="${item.progress}"` : ''}></progress>` : ''}</div>${item.status === 'queued' ? `<button class="text-button remove-item" type="button" data-remove-item="${batch.id}:${item.index}" aria-label="Remove variation ${item.index+1}">Remove</button>` : ''}</div>`;
     }).join('');
     return `<article class="job-card"><div class="job-header"><strong>${escapeHTML(state.config?.modes[batch.settings.mode]?.label || 'Image')} · ${batch.items.length} image${batch.items.length===1?'':'s'}</strong><span>${batch.completed}/${batch.items.length} complete</span></div><p class="job-prompt" title="${escapeHTML(batch.settings.prompt)}">${escapeHTML(batch.settings.prompt)}</p>${items}<div class="job-actions">${batch.status === 'working' ? `<button class="text-button" type="button" data-cancel="${batch.id}">Cancel remaining</button>` : ''}<button class="text-button" type="button" data-reuse="${batch.id}">Reuse brief</button>${batch.images.length ? `<button class="text-button" type="button" data-download="${batch.id}">Download batch ↓</button>` : ''}<button class="text-button" type="button" data-settings="${batch.id}">Save settings</button></div></article>`;
   }).join('') || '<p class="queue-empty">Your next batch starts with a brief.</p>';
@@ -242,6 +243,12 @@ $('gallery').onclick = event => { const button = event.target.closest('[data-ima
 $('jobs').onclick = async event => {
   const button = event.target.closest('button'); if (!button) return;
   if (button.dataset.image) { selectImage(button.dataset.image); return; }
+  if (button.dataset.removeItem) {
+    const [batchId, index] = button.dataset.removeItem.split(':'); button.disabled = true;
+    try { const updated = await api(`/api/job/${batchId}/item/${index}/cancel`, {method:'POST'}); state.batches = state.batches.map(b => b.id === batchId ? updated : b); state.jobsKey = ''; renderJobs(); }
+    catch (error) { button.disabled = false; showError(error.message); }
+    return;
+  }
   const id = button.dataset.cancel || button.dataset.reuse || button.dataset.settings || button.dataset.download;
   const batch = state.batches.find(b => b.id === id); if (!batch) return;
   if (button.dataset.reuse) { applySettings(batch.settings, batch.references); toast('Brief, settings, and references restored.'); }
@@ -285,6 +292,12 @@ $('previewOpen').onclick = () => { if (!state.selected) return; $('fullImage').s
 $('closeLightbox').onclick = () => $('lightbox').close();
 $('lightbox').onclick = event => { if (event.target === $('lightbox')) $('lightbox').close(); };
 $('galleryFilter').onchange = renderGallery;
+$('clearQueue').onclick = async () => {
+  $('clearQueue').disabled = true;
+  try { const result = await api('/api/queue/clear', {method:'POST'}); state.batches = result.batches; state.jobsKey = ''; renderJobs(); toast(`Removed ${result.removed} queued generation${result.removed === 1 ? '' : 's'}.`); }
+  catch (error) { showError(error.message); }
+  finally { $('clearQueue').disabled = false; }
+};
 function setCollection(open) {
   $('collectionBody').hidden = !open;
   $('collectionToggle').setAttribute('aria-expanded', String(open));
