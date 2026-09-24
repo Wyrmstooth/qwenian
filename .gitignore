@@ -1,0 +1,47 @@
+# Local inference engine and Python environments
+ComfyUI/
+.venv/
+venv/
+env/
+
+# Model weights and generated media
+*.safetensors
+*.gguf
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.onnx
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.mp4
+*.zip
+
+# Qwenian runtime state
+.studio/
+output/
+input/
+
+# Python and test caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs and local configuration
+*.log
+*.tmp
+.env
+.env.*
+!.env.example

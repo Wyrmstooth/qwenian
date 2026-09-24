@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f6f2">
+  <title>Qwenian — Local image generation</title>
+  <link rel="stylesheet" href="/static/studio.css">
+  <script src="/static/studio.js" defer></script>
+</head>
+<body>
+<main class="app">
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Qwenian home"><span class="brand-mark">q</span>qwen<span>ian</span><small>LOCAL CREATIVE SPACE</small></a>
+    <div class="top-actions"><button id="galleryToggle" class="quiet">Gallery <span id="galleryCount">0</span></button><span id="engine" class="status checking" role="status">Checking engine</span></div>
+  </header>
+
+  <section class="intro"><div><p class="eyebrow">YOUR IDEAS. YOUR MACHINE.</p><h1>A little imagination.<br><span>Endless possibilities.</span></h1></div><p>Images, interfaces, and everything in between.<br>Bring a brief. Make something worth keeping.</p></section>
+  <nav id="modes" class="mode-tabs" aria-label="Generation mode">
+    <button data-mode="create" aria-pressed="true"><span>✦</span>Image</button>
+    <button data-mode="ui" aria-pressed="false"><span>▤</span>UI / Web</button>
+    <button data-mode="graphics" aria-pressed="false"><span>◈</span>Graphics</button>
+    <button data-mode="product" aria-pressed="false"><span>◇</span>Product</button>
+    <button data-mode="illustration" aria-pressed="false"><span>✎</span>Illustration</button>
+    <button data-mode="edit" aria-pressed="false"><span>↗</span>Edit</button>
+    <button data-mode="design" aria-pressed="false"><span>▧</span>Design Match</button>
+  </nav>
+
+  <div id="error" class="notice error" role="alert" hidden></div>
+  <div id="offline" class="notice" hidden>The local engine is unavailable. Your brief and previous results are still here. Start the engine when you’re ready.</div>
+
+  <form id="generationForm" class="workspace">
+    <aside class="panel settings">
+      <div class="section-heading"><h2>Generation settings</h2><span>01</span></div>
+      <label for="quality">Quality <span id="stepsHint" class="hint">40 steps</span></label>
+      <div id="qualities" class="segments" aria-label="Quality preset"><button type="button" data-quality="draft" aria-pressed="false">Draft</button><button type="button" data-quality="balanced" aria-pressed="true">Balanced</button><button type="button" data-quality="detailed" aria-pressed="false">Detailed</button></div>
+      <input id="quality" name="quality" type="hidden" value="balanced">
+      <p id="qualityNote" class="help">Recommended settings for finished images.</p>
+
+      <label for="shape">Canvas</label><select id="shape" name="shape"><option value="square">Square · 1:1</option><option value="portrait">Portrait · 7:9</option><option value="landscape">Landscape · 9:7</option><option value="wide">Wide · 7:4</option><option value="tall">Tall · 4:7</option></select>
+      <label for="resolution">Resolution</label><select id="resolution" name="resolution"><option value="standard">Standard · ~1 MP</option><option value="large">Large · ~1.6 MP</option><option value="high">High · ~2 MP</option></select><p id="sizeHint" class="help">1024 × 1024 · best fit for 8 GB VRAM</p>
+
+      <label for="count">Images per batch <span class="hint">1–8</span></label><select id="count" name="count"><option value="1">1 image</option><option value="2">2 variations</option><option value="4" selected>4 variations</option><option value="6">6 variations</option><option value="8">8 variations</option></select><p class="help">Queued together, generated one at a time to fit your GPU. Each gets its own seed.</p>
+
+      <label for="style">Visual style</label><select id="style" name="style"><option value="auto">Let the brief decide</option><option value="photo">Photography</option><option value="minimal">Minimal</option><option value="editorial">Editorial</option><option value="3d">3D render</option><option value="flat">Flat illustration</option><option value="cinematic">Cinematic</option></select>
+      <label for="seed">Starting seed <button id="randomSeed" class="text-button" type="button">Random</button></label><input id="seed" name="seed" inputmode="numeric" placeholder="Random each batch" pattern="[0-9]*"><p class="help">Keep a seed and the same settings to reproduce a result.</p>
+
+      <details id="advanced"><summary>Advanced controls <span>+</span></summary>
+        <label for="steps">Custom steps</label><input id="steps" name="steps" type="number" min="20" max="80" placeholder="Use quality preset"><p class="help">More steps cost time and do not always improve an image.</p>
+        <label for="cfg">Guidance</label><input id="cfg" name="cfg" type="number" value="1" min="1" max="5" step="0.1"><p class="help">1 is recommended. Above 1 enables the negative prompt and adds work per step.</p>
+        <label for="negative_prompt">Negative prompt</label><textarea id="negative_prompt" name="negative_prompt" rows="3" maxlength="4000" placeholder="Unwanted elements (requires guidance above 1)"></textarea>
+      </details>
+    </aside>
+
+    <section class="panel composer">
+      <div class="section-heading"><h2 id="briefTitle">Describe your image</h2><span>02</span></div>
+      <p id="modeHint" class="mode-hint">Be specific about the subject, composition, lighting, and mood.</p>
+      <label for="prompt" class="sr-only">Your creative brief</label><textarea id="prompt" name="prompt" class="prompt" maxlength="12000" required placeholder="A sunlit editorial photograph of a quiet coastal home, linen curtains, warm stone, soft morning light. Wide composition, with the sea visible through an open window."></textarea>
+      <div class="prompt-footer"><button id="example" class="text-button" type="button">↗ Try an example</button><span id="charCount">0 / 12,000</span></div>
+
+      <div id="designOptions" hidden><label for="design_focus">Match the reference’s</label><select id="design_focus" name="design_focus"><option value="packaging">Packaging / box</option><option value="poster">Poster / layout</option><option value="product">Product design</option><option value="branding">Brand identity</option><option value="interface">Interface design</option></select></div>
+      <div class="two-fields"><div><label for="palette">Color palette <span class="hint">optional</span></label><input id="palette" name="palette" maxlength="300" placeholder="Warm ivory, charcoal, burnt orange"></div><div><label for="exact_text">Exact text <span class="hint">optional</span></label><input id="exact_text" name="exact_text" maxlength="1000" placeholder='e.g. STUDIO NORTH'></div></div>
+
+      <div class="reference-heading"><label for="refs">Reference images <span id="refCount" class="hint">0 / 10</span></label><button id="clearRefs" class="text-button" type="button" hidden>Clear all</button></div>
+      <label id="dropzone" class="dropzone" for="refs"><span class="upload-icon">↥</span><span><strong>Add a little visual direction</strong><small>Drop PNG, JPG, or WebP · up to 20 MB each</small></span><span class="add-icon">+</span></label><input id="refs" type="file" multiple accept="image/png,image/jpeg,image/webp" class="sr-only"><div id="references" class="references"></div>
+      <label id="matchRow" class="check" hidden><input id="match_size" name="match_size" type="checkbox" checked> Match image 1’s proportions at the selected resolution</label>
+      <p id="referenceHint" class="help" hidden>References are numbered left to right. Mention “image 1”, “image 2”, etc. Matching proportions helps preserve edit alignment.</p>
+
+      <div class="toggles"><label class="check"><input id="enhance" name="enhance" type="checkbox" checked> Add guidance for this mode</label><label class="check"><input id="transparent" name="transparent" type="checkbox"> Transparent background</label><label class="check"><input id="anatomy" name="anatomy" type="checkbox"> Natural human anatomy</label></div>
+      <details class="prompt-details"><summary>View the prompt sent to the model</summary><pre id="effectivePrompt">Write a brief to see the final prompt.</pre></details>
+      <div class="submit-row"><p id="submitHint">Keep the brief focused.<br>Review faces, fine details, and lettering.</p><button id="generate" type="submit" class="primary">Generate 4 images <span>↗</span></button></div>
+      <p class="footnote">Local generation · PNG output · Ctrl / ⌘ + Enter to generate</p>
+    </section>
+
+    <aside class="panel results">
+      <div class="section-heading"><h2>Your canvas</h2><span>03</span></div>
+      <button id="previewOpen" class="preview" type="button" disabled aria-label="View selected image at full size"><span id="emptyPreview"><span class="empty-art">✳</span><strong>Room for your next idea.</strong><small>Your images will appear here, one by one.</small></span><img id="previewImage" alt="Selected generated image" hidden></button>
+      <div id="resultInfo" class="result-info" hidden><strong id="resultTitle"></strong><span id="resultMeta"></span></div>
+      <div id="resultActions" class="result-actions" hidden><a id="download" class="small-button" download>Download PNG ↓</a><button id="copyImage" type="button" class="small-button">Copy image</button><button id="useReference" type="button" class="small-button">Edit this image ↗</button><button id="reuse" type="button" class="small-button">Reuse settings</button><button id="variation" type="button" class="small-button">New variations</button></div>
+      <div class="queue-heading"><h3>Generation queue</h3><span id="queueCount" class="hint">All clear</span></div><p id="connectionNote" class="help" hidden>Reconnecting to Studio. Existing jobs may still be running.</p><div id="jobs" class="jobs"><p class="queue-empty">Your next batch starts with a brief.</p></div>
+    </aside>
+  </form>
+
+  <section id="gallerySection" class="gallery-section">
+    <div class="gallery-heading"><div><p class="eyebrow">MADE HERE</p><h2>Your collection</h2></div><button id="collectionToggle" class="collection-toggle" type="button" aria-expanded="false" aria-controls="collectionBody">Show collection <span>⌄</span></button></div>
+    <div id="collectionBody" hidden>
+      <div class="gallery-tools"><label class="sr-only" for="galleryFilter">Filter gallery by mode</label><select id="galleryFilter"><option value="all">All creations</option><option value="create">Images</option><option value="ui">UI / Web</option><option value="graphics">Graphics</option><option value="product">Products</option><option value="illustration">Illustrations</option><option value="edit">Edits</option><option value="design">Design Match</option></select></div>
+      <div id="gallery" class="gallery"></div><p id="galleryEmpty" class="gallery-empty">A fresh canvas. Finished images will be saved here.</p>
+    </div>
+  </section>
+  <footer>QWENIAN · QWEN IMAGE 2.1 <span>Built for making things. Locally.</span><span id="gpuLabel">Checking your local engine…</span></footer>
+</main>
+<dialog id="lightbox"><button id="closeLightbox" class="lightbox-close" aria-label="Close full size image">×</button><img id="fullImage" alt="Full size generated image"></dialog>
+<div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>
